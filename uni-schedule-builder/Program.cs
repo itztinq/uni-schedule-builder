@@ -16,6 +16,11 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options => options.S
 
 var app = builder.Build();
 
+using (var scope = app.Services.CreateScope())
+{
+    await DbSeeder.SeedRolesAndAdminAsync(scope.ServiceProvider);
+}
+
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
 {
