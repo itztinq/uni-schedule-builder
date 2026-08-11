@@ -11,7 +11,7 @@ using uni_schedule_builder.Data;
 namespace uni_schedule_builder.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260811212113_AddDomainModels")]
+    [Migration("20260811224209_AddDomainModels")]
     partial class AddDomainModels
     {
         /// <inheritdoc />
@@ -305,9 +305,6 @@ namespace uni_schedule_builder.Migrations
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("TEXT");
-
-                    b.Property<int>("Semester")
-                        .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
 

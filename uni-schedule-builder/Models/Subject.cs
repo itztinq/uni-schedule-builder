@@ -11,7 +11,4 @@ public class Subject
     public string Name { get; set; } = string.Empty;
 
     public string? Description { get; set; }
-
-    [Required]
-    public int Semester { get; set; }
 }
