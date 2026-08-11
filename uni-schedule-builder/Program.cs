@@ -19,6 +19,14 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     await DbSeeder.SeedRolesAndAdminAsync(scope.ServiceProvider);
+
+    var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+
+    if (!context.Subjects.Any())
+    {
+        await DbSeeder.SeedFromJsonAsync(context, userManager);
+    }
 }
 
 // Configure the HTTP request pipeline.
