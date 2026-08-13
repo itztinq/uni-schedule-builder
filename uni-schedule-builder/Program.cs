@@ -23,10 +23,7 @@ using (var scope = app.Services.CreateScope())
     var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
 
-    if (!context.Subjects.Any())
-    {
-        await DbSeeder.SeedFromJsonAsync(context, userManager);
-    }
+    await DbSeeder.SeedFromJsonAsync(context, userManager);
 }
 
 // Configure the HTTP request pipeline.

@@ -1,0 +1,132 @@
+@model AdminDashboardViewModel
+
+@{
+    ViewData["Title"] = "Admin Dashboard";
+
+    string StatusClass(string status)
+    {
+        var s = status?.ToLowerInvariant() ?? "";
+        if (s.Contains("cancel")) return "cancel";
+        if (s.Contains("reloc")) return "relocated";
+        return "note";
+    }
+}
+
+<div class="page-title">
+    <span class="title-accent"></span>
+    <span class="title-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+    </span>
+    <span>@ViewData["Title"]</span>
+</div>
+<p class="page-subtitle">
+    Централен преглед и администрација на распоредот, предметите, просториите и промените во наставата.
+</p>
+
+<div class="stat-grid">
+    <div class="dash-card">
+        <div class="dash-card-body stat-card">
+            <div class="stat-num">@Model.SubjectCount</div>
+            <div class="stat-label">Предмети</div>
+        </div>
+    </div>
+
+    <div class="dash-card">
+        <div class="dash-card-body stat-card">
+            <div class="stat-num">@Model.RoomCount</div>
+            <div class="stat-label">Простории</div>
+        </div>
+    </div>
+
+    <div class="dash-card">
+        <div class="dash-card-body stat-card">
+            <div class="stat-num">@Model.TeacherCount</div>
+            <div class="stat-label">Професори</div>
+        </div>
+    </div>
+
+    <div class="dash-card">
+        <div class="dash-card-body stat-card">
+            <div class="stat-num">@Model.StudentGroupCount</div>
+            <div class="stat-label">Студиски групи</div>
+        </div>
+    </div>
+
+    <div class="dash-card">
+        <div class="dash-card-body stat-card">
+            <div class="stat-num">@Model.TermCount</div>
+            <div class="stat-label">Термини</div>
+        </div>
+    </div>
+
+    <div class="dash-card">
+        <div class="dash-card-body stat-card">
+            <div class="stat-num">@Model.ActiveExceptionCount</div>
+            <div class="stat-label">Активни известувања</div>
+        </div>
+    </div>
+</div>
+
+<h2 class="section-title"><span class="dot"></span>Најкористени простории</h2>
+<div class="dash-card mb-4">
+    <div class="dash-card-body table-responsive">
+        <table class="table dash-table">
+            <thead>
+                <tr>
+                    <th>Просторија</th>
+                    <th class="text-end">Број на термини</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var room in Model.MostUsedRooms)
+                {
+                    <tr>
+                        <td class="accent fw-semibold">@room.RoomName</td>
+                        <td class="text-end">@room.TermCount</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<h2 class="section-title"><span class="dot"></span>Активни промени во распоредот</h2>
+<div class="dash-card mb-4">
+    <div class="dash-card-body table-responsive">
+        @if (Model.UpcomingExceptions.Count == 0)
+        {
+            <div class="empty-state">
+                <div class="empty-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                </div>
+                <p class="mb-0">Нема активни промени во распоредот.</p>
+            </div>
+        }
+        else
+        {
+            <table class="table dash-table">
+                <thead>
+                    <tr>
+                        <th>Датум</th>
+                        <th>Предмет</th>
+                        <th>Професор</th>
+                        <th>Статус</th>
+                        <th>Порака</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var e in Model.UpcomingExceptions)
+                    {
+                        <tr>
+                            <td class="text-nowrap">@e.SpecificDate.ToString("dd.MM.yyyy HH:mm")</td>
+                            <td class="accent fw-semibold">@e.SubjectName</td>
+                            <td>@e.TeacherName</td>
+                            <td><span class="status-chip @StatusClass(e.Status)">@e.Status</span></td>
+                            <td>@(string.IsNullOrWhiteSpace(e.Message) ? "—" : e.Message)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>

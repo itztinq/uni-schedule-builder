@@ -1,0 +1,358 @@
+@model IEnumerable<RegularClassTerm>
+@{
+    var isStudent = User.IsInRole("Student");
+    var showAddException = ViewData["ShowAddException"] as bool? == true;
+    var exceptions = ViewData["Exceptions"] as Dictionary<int, List<TermException>>;
+    var scheduleIds = ViewData["ScheduleIdsByTerm"] as Dictionary<int, int>;
+    var emptyText = (ViewData["EmptyText"] as string) ?? "No classes scheduled.";
+    var selectedGroupName = ViewData["SelectedGroupName"] as string;
+    var currentGroupId = ViewData["CurrentGroupId"] as int?;
+    var currentSubjectId = ViewData["CurrentSubjectId"] as int?;
+    var currentTeacherId = ViewData["CurrentTeacherId"] as string;
+    var occupancyByTerm = ViewData["OccupancyByTerm"] as Dictionary<int, (int Count, int Capacity)>;
+
+    var dayNames = new Dictionary<int, string>
+    {
+        { 1, "Понеделник" },
+        { 2, "Вторник" },
+        { 3, "Среда" },
+        { 4, "Четврток" },
+        { 5, "Петок" }
+    };
+    var dayNamesShort = new Dictionary<int, string>
+    {
+        { 1, "Пон" },
+        { 2, "Вто" },
+        { 3, "Сре" },
+        { 4, "Чет" },
+        { 5, "Пет" }
+    };
+
+    string TeacherName(ApplicationUser teacher) => teacher.FullName ?? teacher.UserName ?? "";
+
+    var terms = Model.ToList();
+
+    int FloorStart(RegularClassTerm t) => (int)Math.Floor(t.StartTime.TotalHours);
+    int CeilEnd(RegularClassTerm t) => (int)Math.Ceiling(t.EndTime.TotalHours);
+    int RowSpan(RegularClassTerm t) => Math.Max(1, CeilEnd(t) - FloorStart(t));
+
+    var startHour = terms.Count > 0 ? terms.Min(FloorStart) : 8;
+    var endHour = terms.Count > 0 ? terms.Max(CeilEnd) : 20;
+    if (endHour <= startHour) endHour = startHour + 1;
+    var totalRows = endHour - startHour + 1;
+
+    var dayLayouts = new Dictionary<int, List<TermLayout>>();
+    var dayMaxCols = new Dictionary<int, int>();
+
+    for (var d = 1; d <= 5; d++)
+    {
+        var dayTerms = terms
+            .Where(t => (int)t.DayOfWeek == d)
+            .OrderBy(FloorStart)
+            .ThenByDescending(CeilEnd)
+            .ToList();
+
+        var laneEnds = new List<int>();
+        var items = new List<TermLayout>();
+
+        foreach (var t in dayTerms)
+        {
+            var start = FloorStart(t);
+            var lane = -1;
+            for (var i = 0; i < laneEnds.Count; i++)
+            {
+                if (laneEnds[i] <= start) { lane = i; break; }
+            }
+            if (lane == -1)
+            {
+                lane = laneEnds.Count;
+                laneEnds.Add(CeilEnd(t));
+            }
+            else
+            {
+                laneEnds[lane] = CeilEnd(t);
+            }
+            items.Add(new TermLayout { Term = t, Lane = lane, RowSpan = RowSpan(t) });
+        }
+
+        for (var i = 0; i < items.Count; i++)
+        {
+            var it = items[i];
+            var span = 1;
+            for (var l = it.Lane + 1; l < laneEnds.Count; l++)
+            {
+                var conflict = items.Any(x => x.Lane == l && Overlaps(x.Term, it.Term));
+                if (conflict) break;
+                span++;
+            }
+            it.ColSpan = span;
+        }
+
+        dayLayouts[d] = items;
+        dayMaxCols[d] = Math.Max(1, laneEnds.Count);
+    }
+
+    string TypeBadge(RegularClassTerm t)
+    {
+        var type = t.TermType.ToLowerInvariant();
+        if (type.Contains("lab")) return "c-lab";
+        if (type.Contains("lecture")) return "";
+        return "c-other";
+    }
+
+    string CardTypeClass(RegularClassTerm t)
+    {
+        var type = t.TermType.ToLowerInvariant();
+        if (type.Contains("lab")) return "tg-lab";
+        if (type.Contains("lecture")) return "tg-lecture";
+        return "tg-other";
+    }
+
+    string CardSearch(RegularClassTerm t)
+    {
+        var parts = new List<string> { t.Subject.Name, TeacherName(t.Teacher), t.Room.Name, t.TermType };
+        if (t.RegularClassTermGroups != null)
+        {
+            parts.AddRange(t.RegularClassTermGroups
+                .Select(g => g.StudyGroup?.ShortName ?? g.StudyGroup?.Name)
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+                .Select(s => s!));
+        }
+        return string.Join(" ", parts).ToLowerInvariant();
+    }
+
+    string ExcTypeClass(TermException e)
+    {
+        var type = e.Status.ToLowerInvariant();
+        if (type.Contains("cancel")) return "exc-cancel";
+        if (type.Contains("reloc")) return "exc-reloc";
+        return "exc-note";
+    }
+}
+
+@functions {
+    private class TermLayout
+    {
+        public RegularClassTerm Term { get; set; } = null!;
+        public int Lane { get; set; }
+        public int RowSpan { get; set; } = 1;
+        public int ColSpan { get; set; } = 1;
+    }
+
+    private bool Overlaps(RegularClassTerm a, RegularClassTerm b)
+    {
+        var asrt = (int)Math.Floor(a.StartTime.TotalHours);
+        var aEnd = (int)Math.Ceiling(a.EndTime.TotalHours);
+        var bSt = (int)Math.Floor(b.StartTime.TotalHours);
+        var bEnd = (int)Math.Ceiling(b.EndTime.TotalHours);
+        return asrt < bEnd && bSt < aEnd;
+    }
+}
+
+@if (TempData["Message"] is not null)
+{
+    <div class="alert alert-success d-flex align-items-center gap-2" role="alert">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="flex-shrink-0"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        <span>@TempData["Message"]</span>
+    </div>
+}
+
+<div class="dash-card mb-3">
+    <div class="dash-card-body filter-panel">
+        <div class="search-box">
+            <span class="search-ic">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            </span>
+            <input id="timetableSearch" class="form-control" placeholder="Search by subject, teacher or room..." autocomplete="off"/>
+        </div>
+        <div class="btn-group" role="group" aria-label="Filter by day">
+            <button type="button" class="btn day-pill active" data-day-filter="">All</button>
+            @for (var d = 1; d <= 5; d++)
+            {
+                <button type="button" class="btn day-pill" data-day-filter="@d">@dayNamesShort[d]</button>
+            }
+        </div>
+        <div class="legend">
+            <span class="d-inline-flex align-items-center"><span class="dot lg-green"></span>Lecture</span>
+            <span class="d-inline-flex align-items-center"><span class="dot lg-info"></span>Lab</span>
+            @if (!string.IsNullOrEmpty(selectedGroupName))
+            {
+                <span class="muted-chip">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                    <span>Група: @selectedGroupName</span>
+                </span>
+            }
+            <span class="muted-chip alc-count">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                <span><span id="visibleCount">@terms.Count</span> classes</span>
+            </span>
+        </div>
+    </div>
+</div>
+
+@if (terms.Count == 0)
+{
+    <div class="dash-card">
+        <div class="dash-card-body empty-state">
+            <div class="empty-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            </div>
+            <p class="mb-0">@emptyText</p>
+        </div>
+    </div>
+}
+else
+{
+    <div class="week-wrap">
+        <div id="weekGrid" class="week-grid" data-day="">
+            <div class="week-time">
+                <div class="wg-time-head" aria-hidden="true"></div>
+                @for (var h = startHour; h < endHour; h++)
+                {
+                    <div class="wg-time">@($"{h:00}:00")</div>
+                }
+            </div>
+
+            @for (var d = 1; d <= 5; d++)
+            {
+                var dayItems = dayLayouts[d];
+                var dayCols = dayMaxCols[d];
+                <div class="week-day day-col" data-day="@d"
+                     style="--rows:@totalRows; --cols:@dayCols;">
+                    <div class="wg-day" style="grid-row:1; grid-column:1 / -1;">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                        <span>@dayNames[d]</span>
+                    </div>
+
+                    @foreach (var item in dayItems)
+                    {
+                        var t = item.Term;
+                        var rowStart = FloorStart(t) - startHour + 2;
+                        <div class="wg-card @CardTypeClass(t)" data-day="@((int)t.DayOfWeek)"
+                             data-search="@CardSearch(t)"
+                             tabindex="0"
+                             role="group"
+                             aria-label="@t.Subject.Name, @TeacherName(t.Teacher), @t.Room.Name, @t.TermType"
+                             style="grid-column:@(item.Lane + 1) / span @item.ColSpan; grid-row:@rowStart / span @item.RowSpan;">
+                            <div class="wg-card-head">
+                                <span class="wg-time">@t.StartTime.ToString(@"hh\:mm") – @t.EndTime.ToString(@"hh\:mm")</span>
+                                <div class="wg-head-end">
+                                    @if (occupancyByTerm != null && occupancyByTerm.TryGetValue(t.Id, out var occ))
+                                    {
+                                        var occClass = occ.Count >= occ.Capacity ? "occ-full"
+                                            : occ.Capacity > 0 && occ.Count >= (int)(occ.Capacity * 0.8) ? "occ-warn"
+                                            : "occ-normal";
+                                        <span class="occ-badge @occClass" title="Пријавени студенти / капацитет на просторијата">
+                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                                            <span>@occ.Count/@occ.Capacity</span>
+                                        </span>
+                                    }
+                                    <span class="type-chip @TypeBadge(t)">@t.TermType</span>
+                                </div>
+                            </div>
+                            <div class="wg-subject" title="@t.Subject.Name">@t.Subject.Name</div>
+                            <div class="wg-line">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                                <span title="@TeacherName(t.Teacher)">@TeacherName(t.Teacher)</span>
+                            </div>
+                            <div class="wg-line">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="22" x2="12" y2="2"/><path d="M5 2h14a1 1 0 0 1 1 1v2H4V3a1 1 0 0 1 1-1z"/><path d="M4 4v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4"/></svg>
+                                <span title="@t.Room.Name">@t.Room.Name</span>
+                            </div>
+
+                            @if (t.RegularClassTermGroups != null && t.RegularClassTermGroups.Count > 0)
+                            {
+                                <div class="grp-row">
+                                    @foreach (var gyg in t.RegularClassTermGroups.OrderBy(g => g.StudyGroup?.Name))
+                                    {
+                                        var chipText = gyg.StudyGroup?.ShortName ?? gyg.StudyGroup?.Name;
+                                        if (string.IsNullOrWhiteSpace(chipText))
+                                        {
+                                            continue;
+                                        }
+                                        <span class="grp-chip" title="@(gyg.StudyGroup?.Name)">@chipText</span>
+                                    }
+                                </div>
+                            }
+
+                            @if (exceptions != null && exceptions.TryGetValue(t.Id, out var excs) && excs.Count > 0)
+                            {
+                                <div class="exc-badge-stack">
+                                    @foreach (var e in excs)
+                                    {
+                                        <div class="exc-badge @ExcTypeClass(e)">
+                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                                            <span>
+                                                <strong>@e.Status</strong>
+                                                @if (!string.IsNullOrEmpty(e.Message))
+                                                {
+                                                    @:- @e.Message
+                                                }
+                                                <span class="text-muted">(on @e.SpecificDate.ToShortDateString())</span>
+                                            </span>
+                                        </div>
+                                    }
+                                </div>
+                            }
+
+                            <div class="wg-actions">
+                                @if (isStudent && scheduleIds == null)
+                                {
+                                    <form method="post" asp-controller="Schedule" asp-action="AddToMySchedule">
+                                        <input type="hidden" name="termId" value="@t.Id"/>
+                                        @if (currentGroupId.HasValue)
+                                        {
+                                            <input type="hidden" name="groupId" value="@currentGroupId.Value"/>
+                                        }
+                                        @if (currentSubjectId.HasValue)
+                                        {
+                                            <input type="hidden" name="subjectId" value="@currentSubjectId.Value"/>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(currentTeacherId))
+                                        {
+                                            <input type="hidden" name="teacherId" value="@currentTeacherId"/>
+                                        }
+                                        <button type="submit" class="btn btn-outline-primary btn-sm">
+                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                                            Add
+                                        </button>
+                                    </form>
+                                }
+                                @if (scheduleIds != null && scheduleIds.TryGetValue(t.Id, out var sid))
+                                {
+                                    <form method="post" asp-controller="MySchedule" asp-action="Remove">
+                                        <input type="hidden" name="scheduleId" value="@sid"/>
+                                        <button type="submit" class="btn btn-outline-danger btn-sm">
+                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                                            Remove
+                                        </button>
+                                    </form>
+                                }
+                                @if (showAddException)
+                                {
+                                    <a class="btn btn-outline-primary btn-sm" asp-controller="TeacherExceptions" asp-action="Create" asp-route-termId="@t.Id">
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+                                        Exception
+                                    </a>
+                                }
+                                @if (User.IsInRole("Admin"))
+                                {
+                                    <a class="btn btn-outline-secondary btn-sm" asp-controller="Schedule" asp-action="Edit" asp-route-id="@t.Id">
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+                                        Edit
+                                    </a>
+                                    <form method="post" asp-controller="Schedule" asp-action="Delete" asp-route-id="@t.Id" onsubmit="return confirm('Delete this term? Related student schedules, exceptions and group links will also be removed.');">
+                                        <button type="submit" class="btn btn-outline-danger btn-sm">
+                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                                            Delete
+                                        </button>
+                                    </form>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+}

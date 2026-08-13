@@ -1,0 +1,20 @@
+@model IEnumerable<RegularClassTerm>
+
+@{
+    ViewData["Title"] = "My Classes / Exceptions";
+    ViewData["ShowAddException"] = true;
+    ViewData["EmptyText"] = "You have no classes scheduled.";
+}
+
+<div class="page-title">
+    <span class="title-accent"></span>
+    <span class="title-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+    </span>
+    <span>@ViewData["Title"]</span>
+</div>
+<p class="page-subtitle">
+    The classes you are assigned to teach. Use the <strong class="text-success">Exception</strong> button to post a cancellation, relocation or note.
+</p>
+
+@await Html.PartialAsync("_Timetable", Model)

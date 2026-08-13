@@ -22,12 +22,7 @@ public class AccountController : Controller
     {
         if (User.Identity?.IsAuthenticated == true)
         {
-            if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
-            {
-                return LocalRedirect(returnUrl);
-            }
-
-            return RedirectToAction("Index", "AdminSubjects");
+            return RedirectToHome();
         }
 
         ViewData["ReturnUrl"] = returnUrl;
@@ -58,7 +53,7 @@ public class AccountController : Controller
                 return LocalRedirect(returnUrl);
             }
 
-            return RedirectToAction("Index", "AdminSubjects");
+            return RedirectToHome();
         }
 
         ModelState.AddModelError(string.Empty, "Invalid email or password.");
@@ -73,5 +68,20 @@ public class AccountController : Controller
     {
         await _signInManager.SignOutAsync();
         return RedirectToAction("Index", "Home");
+    }
+
+    private IActionResult RedirectToHome()
+    {
+        if (User.IsInRole("Admin"))
+        {
+            return RedirectToAction("Index", "AdminSubjects");
+        }
+
+        if (User.IsInRole("Teacher"))
+        {
+            return RedirectToAction("Index", "TeacherExceptions");
+        }
+
+        return RedirectToAction("Index", "Schedule");
     }
 }

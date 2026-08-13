@@ -1,0 +1,73 @@
+@model ScheduleFilterViewModel
+
+@{
+    ViewData["Title"] = "Full Schedule";
+    ViewData["SelectedGroupName"] = Model.SelectedGroupName;
+}
+
+<div class="page-title">
+    <span class="title-accent"></span>
+    <span class="title-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+    </span>
+    <span>@ViewData["Title"]</span>
+</div>
+<p class="page-subtitle">
+    Weekly overview of classes for the selected study group.
+    @if (User.IsInRole("Student"))
+    {
+        <span>Use the <strong class="text-success">Add</strong> button to build your personal schedule.</span>
+    }
+</p>
+
+<div class="dash-card mb-3">
+    <div class="dash-card-body toolbar">
+        <form method="get" asp-controller="Schedule" asp-action="Index" class="d-flex align-items-center gap-3 flex-wrap mb-0">
+            <div>
+                <label class="form-label mb-1" asp-for="SelectedGroupId">Група</label>
+                <select class="form-select" name="groupId" asp-for="SelectedGroupId">
+                    @foreach (var g in Model.Groups)
+                    {
+                        <option value="@g.Id" selected="@(g.Id == Model.SelectedGroupId)">@g.Name</option>
+                    }
+                </select>
+            </div>
+            <div>
+                <label class="form-label mb-1" asp-for="SelectedSubjectId">Предмет</label>
+                <select class="form-select" name="subjectId" asp-for="SelectedSubjectId">
+                    <option value="">Сите предмети</option>
+                    @foreach (var s in Model.Subjects)
+                    {
+                        <option value="@s.Id" selected="@(s.Id == Model.SelectedSubjectId)">@s.Name</option>
+                    }
+                </select>
+            </div>
+            <div>
+                <label class="form-label mb-1" asp-for="SelectedTeacherId">Професор</label>
+                <select class="form-select" name="teacherId" asp-for="SelectedTeacherId">
+                    <option value="">Сите професори</option>
+                    @foreach (var t in Model.Teachers)
+                    {
+                        <option value="@t.Id" selected="@(t.Id == Model.SelectedTeacherId)">@t.Name</option>
+                    }
+                </select>
+            </div>
+            <div class="align-self-end">
+                <button type="submit" class="btn btn-primary">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    Прикажи
+                </button>
+                <a class="btn btn-outline-secondary" asp-controller="Schedule" asp-action="Index">Исчисти филтри</a>
+                @if (User.IsInRole("Admin"))
+                {
+                    <a class="btn btn-success" asp-controller="Schedule" asp-action="Create">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        New Term
+                    </a>
+                }
+            </div>
+        </form>
+    </div>
+</div>
+
+@await Html.PartialAsync("_Timetable", Model.Terms)

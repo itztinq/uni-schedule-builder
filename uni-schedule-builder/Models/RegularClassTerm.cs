@@ -26,4 +26,8 @@ public class RegularClassTerm
 
     public string TeacherId { get; set; } = string.Empty;
     public ApplicationUser Teacher { get; set; } = null!;
+
+    public string? SourceId { get; set; }
+
+    public ICollection<RegularClassTermGroup> RegularClassTermGroups { get; set; } = new List<RegularClassTermGroup>();
 }

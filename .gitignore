@@ -483,8 +483,9 @@ $RECYCLE.BIN/
 
 # SQLite local database files
 *.db
+*.db-journal
 *.db-shm
 *.db-wal
 
-# University schedule data (not to be shared)
+# schedule data (not to be shared)
 finki_raspored.json
